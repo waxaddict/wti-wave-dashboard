@@ -1,101 +1,109 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import numpy as np
 
-def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
+def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
     df = yf.download(tickers=symbol, period=period, interval=interval, progress=False)
-    df = df[['High', 'Low', 'Close']].dropna().reset_index()
+    df = df[['High', 'Low', 'Close', 'Volume']].dropna().reset_index()
+    df['EMA21'] = df['Close'].ewm(span=21, adjust=False).mean()
 
-    if len(df) < 20:
-        return None, "Not enough data for wave detection."
-
+    # Identify local minima and maxima
     df['local_min'] = (df['Low'] < df['Low'].shift(1)) & (df['Low'] < df['Low'].shift(-1))
     df['local_max'] = (df['High'] > df['High'].shift(1)) & (df['High'] > df['High'].shift(-1))
 
     local_lows = df[df['local_min']].reset_index()
     local_highs = df[df['local_max']].reset_index()
 
-    st.write("DEBUG: Data shape =", df.shape)
-    st.write("DEBUG: Local lows =", len(local_lows))
-    st.write("DEBUG: Local highs =", len(local_highs))
-
     if len(local_lows) < 2 or len(local_highs) < 1:
-        return None, "Not enough swing points found."
+        return None, "Not enough swing points"
 
-    for i in range(len(local_lows) - 1):
+    sorted_lows = local_lows.sort_values(by='Low').reset_index(drop=True)
+
+    for i in range(len(sorted_lows)):
         try:
-            wave1_low_idx = int(local_lows.loc[i, 'index'])
-
-            wave1_high_candidates = local_highs[local_highs['index'] > wave1_low_idx + min_separation]
-            if wave1_high_candidates.empty:
-                continue
-
-            wave1_high_idx = int(wave1_high_candidates.iloc[0]['index'])
-
-            wave1_high_price = float(df.iloc[wave1_high_idx]['High'])
+            wave1_low_idx = int(sorted_lows.loc[i, 'index'])
             wave1_low_price = float(df.iloc[wave1_low_idx]['Low'])
 
-            wave2_candidates = local_lows[local_lows['index'] > wave1_high_idx + min_separation]
-            if wave2_candidates.empty:
-                continue
+            wave1_high_candidates = local_highs[local_highs['index'] > wave1_low_idx + 3]
+            for j in range(len(wave1_high_candidates)):
+                wave1_high_idx = int(wave1_high_candidates.iloc[j]['index'])
+                wave1_high_price = float(df.iloc[wave1_high_idx]['High'])
 
-            wave2_idx = int(wave2_candidates.iloc[0]['index'])
-            wave2_price = float(df.iloc[wave2_idx]['Low'])
+                wave1_range = wave1_high_price - wave1_low_price
+                if wave1_range < 2.0:
+                    continue
 
-            current_price = float(df['Close'].iloc[-1])
-            wave3_confirmed = current_price > wave1_high_price
+                wave2_candidates = local_lows[local_lows['index'] > wave1_high_idx + 3]
+                if wave2_candidates.empty:
+                    continue
 
-            st.write("DEBUG: W1 Low idx/price:", wave1_low_idx, wave1_low_price)
-            st.write("DEBUG: W1 High idx/price:", wave1_high_idx, wave1_high_price)
-            st.write("DEBUG: W2 Low idx/price:", wave2_idx, wave2_price)
-            st.write("DEBUG: Current price:", current_price)
+                wave2_idx = int(wave2_candidates.iloc[0]['index'])
+                wave2_price = float(df.iloc[wave2_idx]['Low'])
 
-            if wave3_confirmed:
-                fib_1618 = wave1_low_price + (wave1_high_price - wave1_low_price) * 1.618
-                fib_200 = wave1_low_price + (wave1_high_price - wave1_low_price) * 2.0
-                fib_2618 = wave1_low_price + (wave1_high_price - wave1_low_price) * 2.618
+                retrace = (wave1_high_price - wave2_price) / wave1_range
+                if not (0.382 <= retrace <= 0.786):
+                    continue
 
-                return {
-                    "wave1_low": round(wave1_low_price, 2),
-                    "wave1_high": round(wave1_high_price, 2),
-                    "wave2_low": round(wave2_price, 2),
-                    "current_price": round(current_price, 2),
-                    "wave3_confirmed": True,
-                    "fib_targets": {
-                        "1.618": round(fib_1618, 2),
-                        "2.0": round(fib_200, 2),
-                        "2.618": round(fib_2618, 2)
-                    }
-                }, None
+                reversal_candle = ""
+                c1 = df.iloc[wave2_idx - 1]
+                c2 = df.iloc[wave2_idx]
+
+                if c2['Close'] > c2['Open'] and c1['Close'] < c1['Open'] and c2['Close'] > c1['Open'] and c2['Open'] < c1['Close']:
+                    reversal_candle = "Bullish Engulfing"
+                elif (c2['Low'] < c1['Low']) and (c2['Close'] > c2['Open']) and ((c2['High'] - c2['Low']) > 2 * abs(c2['Open'] - c2['Close'])):
+                    reversal_candle = "Hammer"
+
+                vol_surge = c2['Volume'] > df['Volume'].rolling(window=10).mean().iloc[wave2_idx]
+                ema_nearby = abs(c2['Close'] - c2['EMA21']) / c2['Close'] < 0.01  # within 1%
+
+                if reversal_candle and vol_surge and ema_nearby:
+                    fib_1618 = wave1_low_price + wave1_range * 1.618
+                    fib_200 = wave1_low_price + wave1_range * 2.0
+                    fib_2618 = wave1_low_price + wave1_range * 2.618
+
+                    return {
+                        "wave1_low": round(wave1_low_price, 2),
+                        "wave1_high": round(wave1_high_price, 2),
+                        "wave2_low": round(wave2_price, 2),
+                        "retrace_ratio": round(retrace, 3),
+                        "reversal_candle": reversal_candle,
+                        "volume_surge": vol_surge,
+                        "ema_confluence": ema_nearby,
+                        "entry_index": wave2_idx,
+                        "current_price": float(df['Close'].iloc[-1]),
+                        "fib_targets": {
+                            "1.618": round(fib_1618, 2),
+                            "2.0": round(fib_200, 2),
+                            "2.618": round(fib_2618, 2)
+                        }
+                    }, None
         except Exception as e:
-            st.write("DEBUG ERROR in loop:", str(e))
+            st.write("DEBUG ERROR:", str(e))
             continue
 
-    return None, "No valid wave 1–3 structure found."
+    return None, "No valid Wave 2 opportunity found."
 
-# -----------------------
 # Streamlit UI
-# -----------------------
-st.set_page_config(page_title="Wave Engine v2 – Clean Debug", layout="centered")
-st.title("Wave Engine v2 – Scalar Fix Applied")
-st.markdown("Wave 1–2–3 detection with debug outputs and scalar-safe indexing.")
+st.set_page_config(page_title="Wave 2 Finder", layout="centered")
+st.title("Wave 2 Opportunity Finder")
+st.markdown("Looks for deep pullbacks with fib zone, candle pattern, volume, and EMA confluence.")
 
-timeframe = st.selectbox("Timeframe", ["1d", "4h", "2h"])
-results, error = detect_waves(interval=timeframe)
-
-st.write("DEBUG: Final Results =", results)
-st.write("DEBUG: Error =", error)
+result, error = detect_wave2_opportunity()
 
 if error:
     st.error(error)
 else:
-    st.subheader(f"{timeframe.upper()} Wave Structure")
-    st.write(f"Wave 1 Low: **{results['wave1_low']}**")
-    st.write(f"Wave 1 High: **{results['wave1_high']}**")
-    st.write(f"Wave 2 Low: **{results['wave2_low']}**")
-    st.write(f"Current Price: **{results['current_price']}**")
-    st.write(f"Wave 3 Confirmed: {'✅ Yes' if results['wave3_confirmed'] else '❌ No'}")
+    st.subheader("Wave 2 Setup Found")
+    st.write(f"Wave 1 Low: **{result['wave1_low']}**")
+    st.write(f"Wave 1 High: **{result['wave1_high']}**")
+    st.write(f"Wave 2 Low: **{result['wave2_low']}**")
+    st.write(f"Retracement: **{result['retrace_ratio']}**")
+    st.write(f"Reversal Candle: **{result['reversal_candle']}**")
+    st.write(f"Volume Surge: **{'✅' if result['volume_surge'] else '❌'}**")
+    st.write(f"EMA Confluence: **{'✅' if result['ema_confluence'] else '❌'}**")
+    st.write(f"Current Price: **{result['current_price']}**")
 
-    st.subheader("Wave 3/5 Fib Targets")
-    for level, price in results['fib_targets'].items():
-        st.write(f"{level}: {price}")
+    st.subheader("Wave 3 Fib Target Projections")
+    for level, target in result['fib_targets'].items():
+        st.write(f"{level}: {target}")
