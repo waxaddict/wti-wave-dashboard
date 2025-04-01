@@ -14,15 +14,11 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
 
     local_lows = df[df['local_min']].copy()
     local_lows['index'] = local_lows.index
+    local_lows['swing_low'] = df['Low'].loc[local_lows['index']].values  # Safe assignment
+    sorted_lows = local_lows.sort_values(by='swing_low').reset_index(drop=True)
 
     local_highs = df[df['local_max']].copy()
     local_highs['index'] = local_highs.index
-
-    # Merge Low safely and define swing_low manually
-    sorted_lows = local_lows.merge(df[['Low']], left_on='index', right_index=True)
-    sorted_lows['swing_low'] = sorted_lows['Low']
-    sorted_lows.drop(columns=['Low'], inplace=True)
-    sorted_lows = sorted_lows.sort_values(by='swing_low').reset_index(drop=True)
 
     if len(sorted_lows) < 2 or len(local_highs) < 1:
         return None, "Not enough swing points"
@@ -62,7 +58,7 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
                     reversal_candle = "Hammer"
 
                 vol_surge = c2['Volume'] > df['Volume'].rolling(window=10).mean().iloc[wave2_idx]
-                ema_nearby = abs(c2['Close'] - c2['EMA21']) / c2['Close'] < 0.01  # within 1%
+                ema_nearby = abs(c2['Close'] - c2['EMA21']) / c2['Close'] < 0.01
 
                 if reversal_candle and vol_surge and ema_nearby:
                     fib_1618 = wave1_low_price + wave1_range * 1.618
