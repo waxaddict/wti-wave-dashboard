@@ -12,16 +12,16 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
     df['local_min'] = (df['Low'] < df['Low'].shift(1)) & (df['Low'] < df['Low'].shift(-1))
     df['local_max'] = (df['High'] > df['High'].shift(1)) & (df['High'] > df['High'].shift(-1))
 
-    # Extract local lows and highs
     local_lows = df[df['local_min']].copy()
     local_lows['index'] = local_lows.index
 
     local_highs = df[df['local_max']].copy()
     local_highs['index'] = local_highs.index
 
-    # Merge in 'Low' cleanly and rename to avoid conflicts
+    # Merge Low safely and define swing_low manually
     sorted_lows = local_lows.merge(df[['Low']], left_on='index', right_index=True)
-    sorted_lows.rename(columns={"Low": "swing_low"}, inplace=True)
+    sorted_lows['swing_low'] = sorted_lows['Low']
+    sorted_lows.drop(columns=['Low'], inplace=True)
     sorted_lows = sorted_lows.sort_values(by='swing_low').reset_index(drop=True)
 
     if len(sorted_lows) < 2 or len(local_highs) < 1:
