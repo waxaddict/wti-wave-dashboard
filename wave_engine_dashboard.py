@@ -14,9 +14,9 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
 
     # FIX: Use copy to preserve 'Low' column in local_lows
     local_lows = df[df['local_min']].copy()
-local_lows['index'] = local_lows.index
-local_lows.reset_index(drop=True, inplace=True)
-local_lows['Low'] = df.loc[local_lows['index'], 'Low'].values
+    local_lows['index'] = local_lows.index
+    local_lows.reset_index(drop=True, inplace=True)
+    local_lows['Low'] = df.loc[local_lows['index'], 'Low'].values
     local_highs = df[df['local_max']].copy().reset_index(drop=False)
 
     if len(local_lows) < 2 or len(local_highs) < 1:
