@@ -25,13 +25,15 @@ def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
 
     # Identify potential Wave 1, 2, and 3
     for i in range(len(local_lows) - 1):
-        wave1_low_idx = local_lows.loc[i, 'index']
+        wave1_low_idx = int(local_lows.loc[i, 'index'])
+
+        # Only look for highs after the low with separation
         wave1_high_candidates = local_highs[local_highs['index'] > wave1_low_idx + min_separation]
 
         if wave1_high_candidates.empty:
             continue
 
-        wave1_high_idx = wave1_high_candidates.iloc[0]['index']
+        wave1_high_idx = int(wave1_high_candidates.iloc[0]['index'])
         wave1_high_price = df.loc[wave1_high_idx, 'High']
         wave1_low_price = df.loc[wave1_low_idx, 'Low']
 
@@ -39,7 +41,7 @@ def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
         if wave2_candidates.empty:
             continue
 
-        wave2_idx = wave2_candidates.iloc[0]['index']
+        wave2_idx = int(wave2_candidates.iloc[0]['index'])
         wave2_price = df.loc[wave2_idx, 'Low']
 
         # Confirm Wave 3 if current price breaks wave1 high
