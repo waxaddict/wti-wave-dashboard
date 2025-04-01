@@ -22,7 +22,10 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
     if len(local_lows) < 2 or len(local_highs) < 1:
         return None, "Not enough swing points"
 
-    sorted_lows = local_lows.sort_values(by='Low').reset_index(drop=True)
+    sorted_lows = local_lows.merge(df[['Low']], left_on='index', right_index=True)
+    sorted_lows = local_lows.merge(df[['Low']], left_on='index', right_index=True)
+    sorted_lows = sorted_lows.sort_values(by='Low').reset_index(drop=True)
+    
 
     for i in range(len(sorted_lows)):
         try:
