@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 
-# -----------------------
-# Function: Fully Debugged Wave Detection with Safe Indexing
-# -----------------------
 def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
     df = yf.download(tickers=symbol, period=period, interval=interval, progress=False)
     df = df[['High', 'Low', 'Close']].dropna().reset_index()
@@ -27,26 +24,24 @@ def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
 
     for i in range(len(local_lows) - 1):
         try:
-            wave1_low_idx = local_lows.loc[i, 'index']
-            wave1_low_idx = int(wave1_low_idx.item() if hasattr(wave1_low_idx, 'item') else wave1_low_idx)
+            wave1_low_idx = int(local_lows.loc[i, 'index'])
 
             wave1_high_candidates = local_highs[local_highs['index'] > wave1_low_idx + min_separation]
             if wave1_high_candidates.empty:
                 continue
 
-            wave1_high_idx = wave1_high_candidates.iloc[0]['index']
-            wave1_high_idx = int(wave1_high_idx.item() if hasattr(wave1_high_idx, 'item') else wave1_high_idx)
+            wave1_high_idx = int(wave1_high_candidates.iloc[0]['index'])
+
             wave1_high_price = float(df.iloc[wave1_high_idx]['High'])
-            wave1_low_price = float(df.at[wave1_low_idx, 'Low'])
+            wave1_low_price = float(df.iloc[wave1_low_idx]['Low'])
 
             wave2_candidates = local_lows[local_lows['index'] > wave1_high_idx + min_separation]
             if wave2_candidates.empty:
                 continue
 
-            wave2_idx = wave2_candidates.iloc[0]['index']
-            wave2_idx = int(wave2_idx.item() if hasattr(wave2_idx, 'item') else wave2_idx)
+            wave2_idx = int(wave2_candidates.iloc[0]['index'])
+            wave2_price = float(df.iloc[wave2_idx]['Low'])
 
-            wave2_price = float(df.at[wave2_idx, 'Low'])
             current_price = float(df['Close'].iloc[-1])
             wave3_confirmed = current_price > wave1_high_price
 
@@ -76,14 +71,14 @@ def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
             st.write("DEBUG ERROR in loop:", str(e))
             continue
 
-    return None, "No valid wave 1â3 structure found."
+    return None, "No valid wave 1–3 structure found."
 
 # -----------------------
 # Streamlit UI
 # -----------------------
-st.set_page_config(page_title="Wave Engine v2 â Clean Debug", layout="centered")
-st.title("Wave Engine v2 â Scalar Index Fix Applied")
-st.markdown("Wave 1â2â3 structure with safe scalar indexing and full debug visibility.")
+st.set_page_config(page_title="Wave Engine v2 – Clean Debug", layout="centered")
+st.title("Wave Engine v2 – Scalar Fix Applied")
+st.markdown("Wave 1–2–3 detection with debug outputs and scalar-safe indexing.")
 
 timeframe = st.selectbox("Timeframe", ["1d", "4h", "2h"])
 results, error = detect_waves(interval=timeframe)
@@ -99,7 +94,7 @@ else:
     st.write(f"Wave 1 High: **{results['wave1_high']}**")
     st.write(f"Wave 2 Low: **{results['wave2_low']}**")
     st.write(f"Current Price: **{results['current_price']}**")
-    st.write(f"Wave 3 Confirmed: {'â Yes' if results['wave3_confirmed'] else 'â No'}")
+    st.write(f"Wave 3 Confirmed: {'✅ Yes' if results['wave3_confirmed'] else '❌ No'}")
 
     st.subheader("Wave 3/5 Fib Targets")
     for level, price in results['fib_targets'].items():
