@@ -8,24 +8,23 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
     df = df[['High', 'Low', 'Close', 'Volume']].dropna().reset_index()
     df['EMA21'] = df['Close'].ewm(span=21, adjust=False).mean()
 
-    # Identify local swing points
+    # Identify swing points
     df['local_min'] = (df['Low'] < df['Low'].shift(1)) & (df['Low'] < df['Low'].shift(-1))
     df['local_max'] = (df['High'] > df['High'].shift(1)) & (df['High'] > df['High'].shift(-1))
 
-    # FIX: Use copy to preserve 'Low' column in local_lows
+    # Extract local lows and highs
     local_lows = df[df['local_min']].copy()
     local_lows['index'] = local_lows.index
-    local_lows.reset_index(drop=True, inplace=True)
-    local_lows['Low'] = df.loc[local_lows['index'], 'Low'].values
-    local_highs = df[df['local_max']].copy().reset_index(drop=False)
 
-    if len(local_lows) < 2 or len(local_highs) < 1:
-        return None, "Not enough swing points"
+    local_highs = df[df['local_max']].copy()
+    local_highs['index'] = local_highs.index
 
-    sorted_lows = local_lows.merge(df[['Low']], left_on='index', right_index=True)
+    # Merge in 'Low' from original df to ensure alignment
     sorted_lows = local_lows.merge(df[['Low']], left_on='index', right_index=True)
     sorted_lows = sorted_lows.sort_values(by='Low').reset_index(drop=True)
-    
+
+    if len(sorted_lows) < 2 or len(local_highs) < 1:
+        return None, "Not enough swing points"
 
     for i in range(len(sorted_lows)):
         try:
@@ -41,7 +40,7 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
                 if wave1_range < 2.0:
                     continue
 
-                wave2_candidates = local_lows[local_lows['index'] > wave1_high_idx + 3]
+                wave2_candidates = sorted_lows[sorted_lows['index'] > wave1_high_idx + 3]
                 if wave2_candidates.empty:
                     continue
 
@@ -94,7 +93,7 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
 # Streamlit UI
 st.set_page_config(page_title="Wave 2 Finder", layout="centered")
 st.title("Wave 2 Opportunity Finder")
-st.markdown("Looks for deep pullbacks with fib zone, candle pattern, volume, and EMA confluence.")
+st.markdown("Detects fib retracements, reversal candles, volume, and EMA21 confluence.")
 
 result, error = detect_wave2_opportunity()
 
