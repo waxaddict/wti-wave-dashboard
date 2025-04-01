@@ -5,7 +5,7 @@ import numpy as np
 
 def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
     df = yf.download(tickers=symbol, period=period, interval=interval, progress=False)
-    df = df[['High', 'Low', 'Close', 'Volume']].dropna().reset_index()
+    df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna().reset_index()
     df['EMA21'] = df['Close'].ewm(span=21, adjust=False).mean()
 
     # Identify swing points
@@ -14,14 +14,16 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
 
     local_lows = df[df['local_min']].copy()
     local_lows['index'] = local_lows.index
-    local_lows['swing_low'] = df['Low'].loc[local_lows['index']].values  # Safe assignment
+    local_lows['swing_low'] = df['Low'].loc[local_lows['index']].values
     sorted_lows = local_lows.sort_values(by='swing_low').reset_index(drop=True)
 
     local_highs = df[df['local_max']].copy()
     local_highs['index'] = local_highs.index
 
+    candidate_rows = []
+
     if len(sorted_lows) < 2 or len(local_highs) < 1:
-        return None, "Not enough swing points"
+        return None, "Not enough swing points", pd.DataFrame()
 
     for i in range(len(sorted_lows)):
         try:
@@ -45,7 +47,7 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
                 wave2_price = float(df.iloc[wave2_idx]['Low'])
 
                 retrace = (wave1_high_price - wave2_price) / wave1_range
-                if not (0.382 <= retrace <= 0.786):
+                if retrace > 1.0:
                     continue
 
                 reversal_candle = ""
@@ -58,9 +60,20 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
                     reversal_candle = "Hammer"
 
                 vol_surge = c2['Volume'] > df['Volume'].rolling(window=10).mean().iloc[wave2_idx]
-                ema_nearby = abs(c2['Close'] - c2['EMA21']) / c2['Close'] < 0.01
+                ema_nearby = abs(c2['Close'] - df['EMA21'].iloc[wave2_idx]) / c2['Close'] < 0.01
 
-                if reversal_candle and vol_surge and ema_nearby:
+                candidate_rows.append({
+                    "W1 Low": round(wave1_low_price, 2),
+                    "W1 High": round(wave1_high_price, 2),
+                    "W2 Low": round(wave2_price, 2),
+                    "Retrace %": round(retrace, 3),
+                    "Candle": reversal_candle or "None",
+                    "Volume Spike": "Yes" if vol_surge else "No",
+                    "EMA Confluence": "Yes" if ema_nearby else "No",
+                    "Confirmed": reversal_candle and vol_surge and ema_nearby and (0.382 <= retrace <= 0.786)
+                })
+
+                if reversal_candle and vol_surge and ema_nearby and (0.382 <= retrace <= 0.786):
                     fib_1618 = wave1_low_price + wave1_range * 1.618
                     fib_200 = wave1_low_price + wave1_range * 2.0
                     fib_2618 = wave1_low_price + wave1_range * 2.618
@@ -80,19 +93,18 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
                             "2.0": round(fib_200, 2),
                             "2.618": round(fib_2618, 2)
                         }
-                    }, None
+                    }, None, pd.DataFrame(candidate_rows)
         except Exception as e:
-            st.write("DEBUG ERROR:", str(e))
             continue
 
-    return None, "No valid Wave 2 opportunity found."
+    return None, "No valid Wave 2 opportunity found.", pd.DataFrame(candidate_rows)
 
 # Streamlit UI
 st.set_page_config(page_title="Wave 2 Finder", layout="centered")
 st.title("Wave 2 Opportunity Finder")
 st.markdown("Detects fib retracements, reversal candles, volume, and EMA21 confluence.")
 
-result, error = detect_wave2_opportunity()
+result, error, candidates = detect_wave2_opportunity()
 
 if error:
     st.error(error)
@@ -110,3 +122,7 @@ else:
     st.subheader("Wave 3 Fib Target Projections")
     for level, target in result['fib_targets'].items():
         st.write(f"{level}: {target}")
+
+if not candidates.empty:
+    st.subheader("All Detected Wave 1 + 2 Candidates")
+    st.dataframe(candidates)
