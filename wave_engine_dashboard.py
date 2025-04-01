@@ -33,14 +33,14 @@ def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
 
         wave1_high_idx = int(wave1_high_candidates.iloc[0]['index'])
         wave1_high_price = float(df.at[wave1_high_idx, 'High'])
-        wave1_low_price = float(df.loc[wave1_low_idx, 'Low'])
+        wave1_low_price = float(df.at[wave1_low_idx, 'Low'])
 
         wave2_candidates = local_lows[local_lows['index'] > wave1_high_idx + min_separation]
         if wave2_candidates.empty:
             continue
 
         wave2_idx = int(wave2_candidates.iloc[0]['index'])
-        wave2_price = float(df.loc[wave2_idx, 'Low'])
+        wave2_price = float(df.at[wave2_idx, 'Low'])
 
         current_price = float(df['Close'].iloc[-1])
         wave3_confirmed = current_price > wave1_high_price
@@ -64,6 +64,7 @@ def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
             }, None
 
     return None, "No valid wave 1–3 structure found."
+
 
 # -----------------------
 # Streamlit UI
