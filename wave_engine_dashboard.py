@@ -15,6 +15,9 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
     local_lows = df[df['local_min']].reset_index()
     local_highs = df[df['local_max']].reset_index()
 
+    # FIX: Ensure 'Low' exists in local_lows so we can sort it
+    local_lows['Low'] = df['Low'].loc[local_lows['index']].values
+
     if len(local_lows) < 2 or len(local_highs) < 1:
         return None, "Not enough swing points"
 
