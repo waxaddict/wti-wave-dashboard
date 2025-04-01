@@ -36,8 +36,7 @@ def detect_waves(symbol="CL=F", interval="1d", period="90d", min_separation=3):
 
             wave1_high_idx = wave1_high_candidates.iloc[0]['index']
             wave1_high_idx = int(wave1_high_idx.item() if hasattr(wave1_high_idx, 'item') else wave1_high_idx)
-
-            wave1_high_price = float(df.at[wave1_high_idx, 'High'])
+            wave1_high_price = float(df.iloc[wave1_high_idx]['High'])
             wave1_low_price = float(df.at[wave1_low_idx, 'Low'])
 
             wave2_candidates = local_lows[local_lows['index'] > wave1_high_idx + min_separation]
