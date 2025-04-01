@@ -8,15 +8,13 @@ def detect_wave2_opportunity(symbol="CL=F", interval="4h", period="90d"):
     df = df[['High', 'Low', 'Close', 'Volume']].dropna().reset_index()
     df['EMA21'] = df['Close'].ewm(span=21, adjust=False).mean()
 
-    # Identify local minima and maxima
+    # Identify local swing points
     df['local_min'] = (df['Low'] < df['Low'].shift(1)) & (df['Low'] < df['Low'].shift(-1))
     df['local_max'] = (df['High'] > df['High'].shift(1)) & (df['High'] > df['High'].shift(-1))
 
-    local_lows = df[df['local_min']].reset_index()
-    local_highs = df[df['local_max']].reset_index()
-
-    # FIX: Ensure 'Low' exists in local_lows so we can sort it
-    local_lows['Low'] = df['Low'].loc[local_lows['index']].values
+    # FIX: Use copy to preserve 'Low' column in local_lows
+    local_lows = df[df['local_min']].copy().reset_index(drop=False)
+    local_highs = df[df['local_max']].copy().reset_index(drop=False)
 
     if len(local_lows) < 2 or len(local_highs) < 1:
         return None, "Not enough swing points"
